@@ -4,8 +4,14 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 import _ from 'underscore'
 import moment from 'moment'
+import config from './private/config.js'
+import firebase from 'firebase'
+
+const app = firebase.initializeApp(config.firebase);
+window.app = app
 
 const logger = store => next => action => {
+  if (action.type === 'HYDRATE') return next(action)
   var result = next(action)
   var currentStack = JSON.parse(localStorage.getItem('stack')) || [];
   var task = {
@@ -14,8 +20,23 @@ const logger = store => next => action => {
     stack: store.getState()
   };
   var finalStack = [...currentStack, task];
-  localStorage.setItem('stack', JSON.stringify(finalStack));
+  var stringStack = JSON.stringify(finalStack)
+  // Log to localStorage.
+  localStorage.setItem('stack', stringStack);
+  var user = app.auth().currentUser
+  if (user) {
+    var userStack = {};
+    userStack[user.uid] = stringStack;
+    // Log to Firebase.
+    app.database().ref().update(userStack);
+  }
   return result
+}
+
+const extractFromHydrate = (stringStack) => {
+  var stack = JSON.parse(stringStack)
+  if (stack) return stack.pop().stack
+  return []
 }
 
 const stack = (state = [], action) => {
@@ -31,17 +52,15 @@ const stack = (state = [], action) => {
         return task.id == action.id;
       });
       return state.slice(0, index);
+    case 'HYDRATE':
+      return extractFromHydrate(action.value)
     default:
       return state;
   }
 };
 
 const store = createStore(stack,
-  (() => {
-    var stack = JSON.parse(localStorage.getItem('stack'))
-    if (stack) return stack.pop().stack
-    return []
-  })(),
+  extractFromHydrate(localStorage.getItem('stack')),
   applyMiddleware(logger)
 );
 
@@ -124,7 +143,58 @@ const StackContainer = connect(
   mapDispatchToProps
 )(Stack);
 
+class App extends React.Component {
+  constructor(props) {
+    super(props);
+  }
+  componentDidMount() {
+    app.auth().onAuthStateChanged((user) => {
+      this.forceUpdate()
+      if (user) {
+        var uid = user.uid;
+        app.database().ref(uid).on('value', (snapshot) => {
+          if (snapshot.val()) {
+            store.dispatch({type: 'HYDRATE', value: snapshot.val()})
+          }
+        });
+      }
+    });
+  }
+  onLogin(event) {
+    const email = this.emailInput.value;
+    const password = this.passwordInput.value;
+    app.auth().signInWithEmailAndPassword(email, password).catch((error) => {
+      console.log(error)
+    });
+  }
+  onCreate(event) {
+    const email = this.emailInput.value;
+    const password = this.passwordInput.value;
+    app.auth().createUserWithEmailAndPassword(email, password, (error, userData) => {
+      if (error) {
+        console.log(error);
+      }
+    });
+  }
+  render() {
+    var login;
+    if (!app.auth().currentUser) {
+      login = (<div>
+        <input ref={(ref) => this.emailInput = ref} placeholder='Email'/>
+        <input ref={(ref) => this.passwordInput = ref} placeholder='Password'/>
+        <button onClick={(event) => this.onLogin()}>Log In</button>
+        <button onClick={(event) => this.onCreate()}>Create Account</button>
+      </div>)
+    }
+    return <div>
+      {login}
+      <br/>
+      <StackContainer store={store} />
+    </div>
+  }
+}
+
 ReactDOM.render(
-  <StackContainer store={store} />,
+  <App />,
   document.getElementById('root')
 );
