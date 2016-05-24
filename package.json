@@ -4,8 +4,9 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "build": "node_modules/.bin/browserify src/index.js -o static/bundle.js -d",
-    "dev": "node_modules/.bin/budo src/index.js:private/bundle.js  -l -v -d static/"
+    "build": "node_modules/.bin/browserify src/index.js -o static/private/bundle.js -d",
+    "dev": "node_modules/.bin/budo src/index.js:private/bundle.js  -l -v -d static/",
+    "deploy": "npm run build && firebase deploy"
   },
   "browserify": {
     "transform": [

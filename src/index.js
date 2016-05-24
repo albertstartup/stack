@@ -64,8 +64,6 @@ const store = createStore(stack,
   applyMiddleware(logger)
 );
 
-window.store = store
-
 class Task extends React.Component {
   constructor(props) {
     super(props);
@@ -170,10 +168,8 @@ class App extends React.Component {
   onCreate(event) {
     const email = this.emailInput.value;
     const password = this.passwordInput.value;
-    app.auth().createUserWithEmailAndPassword(email, password, (error, userData) => {
-      if (error) {
-        console.log(error);
-      }
+    app.auth().createUserWithEmailAndPassword(email, password).catch((error) => {
+      console.log(error);
     });
   }
   render() {
@@ -181,7 +177,7 @@ class App extends React.Component {
     if (!app.auth().currentUser) {
       login = (<div>
         <input ref={(ref) => this.emailInput = ref} placeholder='Email'/>
-        <input ref={(ref) => this.passwordInput = ref} placeholder='Password'/>
+        <input ref={(ref) => this.passwordInput = ref} placeholder='Password' type='password'/>
         <button onClick={(event) => this.onLogin()}>Log In</button>
         <button onClick={(event) => this.onCreate()}>Create Account</button>
       </div>)
